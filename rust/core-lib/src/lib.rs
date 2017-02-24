@@ -14,6 +14,9 @@
 
 //! The main library for xi-core.
 
+extern crate fall_json;
+extern crate fall;
+
 extern crate serde;
 extern crate serde_json;
 extern crate time;

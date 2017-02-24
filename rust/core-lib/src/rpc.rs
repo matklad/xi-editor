@@ -96,6 +96,7 @@ pub enum EditCommand<'a> {
     DebugRewrap,
     DebugTestFgSpans,
     DebugRunPlugin,
+    ExtendSelection,
 }
 
 impl<'a> TabCommand<'a> {
@@ -237,6 +238,8 @@ impl<'a> EditCommand<'a> {
             "debug_rewrap" => Ok(DebugRewrap),
             "debug_test_fg_spans" => Ok(DebugTestFgSpans),
             "debug_run_plugin" => Ok(DebugRunPlugin),
+
+            "extend_selection" => Ok(ExtendSelection),
 
             _ => Err(UnknownEditMethod(method.to_string())),
         }

@@ -44,6 +44,7 @@ const MAX_SIZE_LIMIT: usize = 1024 * 1024;
 pub struct Editor<W: Write> {
     text: Rope,
     view: View,
+    ast: ::fall::File,
 
     engine: Engine,
     last_rev_id: usize,
@@ -100,6 +101,7 @@ impl<W: Write + Send + 'static> Editor<W> {
         let editor = Editor {
             text: Rope::from(""),
             view: View::new(),
+            ast: ::fall_json::parse(String::new()),
             text_dirty: false,
             view_dirty: false,
             engine: engine,
@@ -174,6 +176,7 @@ impl<W: Write + Send + 'static> Editor<W> {
         let priority = 0x10000;
         self.engine.edit_rev(priority, undo_group, head_rev_id, delta);
         self.text = self.engine.get_head();
+        self.ast = ::fall_json::parse(String::from(self.text.clone()));
         self.new_cursor = Some((new_start, new_end));
     }
 
@@ -239,6 +242,7 @@ impl<W: Write + Send + 'static> Editor<W> {
     fn reset_contents(&mut self, new_contents: Rope) {
         self.engine = Engine::new(new_contents);
         self.text = self.engine.get_head();
+        self.ast = ::fall_json::parse(String::from(self.text.clone()));
         self.text_dirty = true;
         self.view.reset_breaks();
         self.set_cursor(0, true);
@@ -246,7 +250,10 @@ impl<W: Write + Send + 'static> Editor<W> {
 
     // render if needed, sending to ui
     fn render(&mut self) {
+
         self.view.render_if_dirty(&self.text, &self.tab_ctx);
+        self.tab_ctx.send_ast(&self.ast);
+
         if let Some(scrollto) = self.scroll_to {
             let (line, col) = self.view.offset_to_line_col(&self.text, scrollto);
             self.tab_ctx.scroll_to(line, col);
@@ -631,6 +638,25 @@ impl<W: Write + Send + 'static> Editor<W> {
         start_plugin(self_ref.clone());
     }
 
+    fn extend_selection(&mut self) {
+        let old_range = ::fall::TextRange {
+            start: self.view.sel_start as u32,
+            end: self.view.sel_end as u32,
+        };
+
+        let new_range = {
+            let node = self.ast.node_containing_range(old_range);
+            let parent = node.parent();
+            parent.map(|n| n.range())
+        };
+
+        if let Some(new_range) = new_range {
+            self.this_edit_type = EditType::Select;
+            self.view.sel_start = new_range.start as usize;
+            self.set_cursor(new_range.end as usize, false)
+        }
+    }
+
     pub fn on_plugin_connect(&mut self, plugin_ref: PluginRef<W>) {
         plugin_ref.init_buf(self.plugin_buf_size(), self.engine.get_head_rev_id());
         self.plugins.push(plugin_ref);
@@ -784,6 +810,7 @@ impl<W: Write + Send + 'static> Editor<W> {
             DebugRewrap => async(self.debug_rewrap()),
             DebugTestFgSpans => async(self.debug_test_fg_spans()),
             DebugRunPlugin => async(self.debug_run_plugin(self_ref)),
+            ExtendSelection => async(self.extend_selection()),
         };
 
         // TODO: could defer this until input quiesces - will this help?

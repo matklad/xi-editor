@@ -112,6 +112,14 @@ impl<W: Write> TabCtx<W> {
                 .build());
     }
 
+    pub fn send_ast(&self, ast: &::fall::File) {
+        self.rpc_peer.send_rpc_notification("ast",
+            &ObjectBuilder::new()
+                .insert("tab", &self.tab)
+                .insert("ast", ast.dump())
+                .build());
+    }
+
     pub fn scroll_to(&self, line: usize, col: usize) {
         self.rpc_peer.send_rpc_notification("scroll_to",
             &ObjectBuilder::new()
